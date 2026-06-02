@@ -27,7 +27,3 @@ An AI-powered HR tool that analyzes job descriptions and helps candidates and HR
 ## About
 
 Built by Divyah Chauhan as part of a personal HR tech portfolio project. Designed to demonstrate practical applications of AI in talent acquisition and HR operations.
-
-## Screenshots
-
-*(add a screenshot of the app here)*
