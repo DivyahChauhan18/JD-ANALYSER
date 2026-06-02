@@ -144,7 +144,7 @@ Return ONLY raw JSON (no markdown, no backticks, no explanation). Use this exact
         headers: {
           "Content-Type": "application/json",
           "anthropic-dangerous-direct-browser-access": "true",
-          "x-api-key": "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",
+          "x-api-key": "YOUR_API_KEY_HERE",
           "anthropic-version": "2023-06-01",
         },
         body: JSON.stringify({
