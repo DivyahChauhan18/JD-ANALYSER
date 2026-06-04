@@ -35,7 +35,7 @@ async function extractTextFromPDF(file) {
     const reader = new FileReader();
     reader.onload = async (e) => {
       try {
-        const { pdfjsLib } = globalThis;
+        const pdfjsLib = window.pdfjsLib;
         if (pdfjsLib) {
           pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
           const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(e.target.result) }).promise;
@@ -118,7 +118,7 @@ export default function JDAnalyzer() {
     const script = document.createElement("script");
     script.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
     script.onload = () => {
-      globalThis.pdfjsLib = window["pdfjs-dist/build/pdf"];
+      window.pdfjsLib = window["pdfjs-dist/build/pdf"];
     };
     document.head.appendChild(script);
   }, []);
