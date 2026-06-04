@@ -30,6 +30,29 @@ function scoreColor(s) { return s >= 75 ? C.success : s >= 50 ? C.warn : C.dange
 function scoreBg(s) { return s >= 75 ? C.successBg : s >= 50 ? C.warnBg : C.dangerBg; }
 function scoreLabel(s) { return s >= 75 ? "Strong" : s >= 50 ? "Moderate" : "Weak"; }
 
+async function extractTextFromPDF(file) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const typedArray = new Uint8Array(e.target.result);
+        const pdfjsLib = window['pdfjs-dist/build/pdf'];
+        if (!pdfjsLib) { resolve(""); return; }
+        pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+        const pdf = await pdfjsLib.getDocument({ data: typedArray }).promise;
+        let text = "";
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const content = await page.getTextContent();
+          text += content.items.map(item => item.str).join(" ") + "\n";
+        }
+        resolve(text.trim());
+      } catch { resolve(""); }
+    };
+    reader.readAsArrayBuffer(file);
+  });
+}
+
 function Chip({ children, type }) {
   const map = {
     match: { bg: C.successBg, color: C.success, border: C.successBorder },
@@ -74,11 +97,35 @@ function Block({ number, label, accent, children }) {
 export default function JDAnalyzer() {
   const [jd, setJd] = useState("");
   const [resume, setResume] = useState("");
+  const [jdFileName, setJdFileName] = useState("");
+  const [resumeFileName, setResumeFileName] = useState("");
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("structure");
   const [error, setError] = useState("");
   const [step, setStep] = useState("input");
+
+  async function handleJdFile(file) {
+    if (file.type === "application/pdf") {
+      const text = await extractTextFromPDF(file);
+      if (text) { setJd(text); setJdFileName(file.name); }
+      else setError("Could not extract text from PDF. Try pasting instead.");
+    } else {
+      const text = await file.text();
+      setJd(text); setJdFileName(file.name);
+    }
+  }
+
+  async function handleResumeFile(file) {
+    if (file.type === "application/pdf") {
+      const text = await extractTextFromPDF(file);
+      if (text) { setResume(text); setResumeFileName(file.name); }
+      else setError("Could not extract text from PDF. Try pasting instead.");
+    } else {
+      const text = await file.text();
+      setResume(text); setResumeFileName(file.name);
+    }
+  }
 
   async function analyze() {
     if (!jd.trim()) return;
@@ -244,6 +291,7 @@ Return ONLY raw JSON (no markdown, no backticks). Use this exact structure:
   return (
     <>
       <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
       <style>{`
         * { box-sizing: border-box; }
         body { margin: 0; background: ${C.bg}; }
@@ -289,24 +337,36 @@ Return ONLY raw JSON (no markdown, no backticks). Use this exact structure:
             <div style={{ padding: "48px 64px 80px" }}>
               <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
                 <div>
-                  <label style={{ fontSize: 9, letterSpacing: "0.22em", textTransform: "uppercase", color: C.text, fontFamily: C.mono, fontWeight: 700, display: "block", marginBottom: 10 }}>Job Description *</label>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                    <label style={{ fontSize: 9, letterSpacing: "0.22em", textTransform: "uppercase", color: C.text, fontFamily: C.mono, fontWeight: 700 }}>Job Description *</label>
+                    <label style={{ fontSize: 9, letterSpacing: "0.12em", textTransform: "uppercase", color: C.gold, fontFamily: C.mono, fontWeight: 700, cursor: "pointer", border: `1px solid ${C.goldBorder}`, padding: "4px 12px", borderRadius: 2, background: C.goldBg }}>
+                      {jdFileName ? `✓ ${jdFileName.slice(0, 20)}` : "↑ Upload PDF / TXT"}
+                      <input type="file" accept=".pdf,.txt" style={{ display: "none" }} onChange={e => e.target.files[0] && handleJdFile(e.target.files[0])} />
+                    </label>
+                  </div>
                   <textarea
                     style={{ width: "100%", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 2, color: C.text, fontFamily: C.mono, fontSize: 12, padding: "16px 18px", resize: "vertical", lineHeight: 1.75, minHeight: 220, transition: "all 0.15s" }}
-                    placeholder="Paste the full job description here..."
+                    placeholder="Paste the full job description here, or upload a PDF/TXT above..."
                     value={jd}
-                    onChange={e => setJd(e.target.value)}
+                    onChange={e => { setJd(e.target.value); setJdFileName(""); }}
                   />
                 </div>
 
                 <div>
-                  <label style={{ fontSize: 9, letterSpacing: "0.22em", textTransform: "uppercase", color: C.text, fontFamily: C.mono, fontWeight: 700, display: "block", marginBottom: 10 }}>
-                    Resume <span style={{ color: C.muted, fontWeight: 400 }}>(optional — for match scoring)</span>
-                  </label>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                    <label style={{ fontSize: 9, letterSpacing: "0.22em", textTransform: "uppercase", color: C.text, fontFamily: C.mono, fontWeight: 700 }}>
+                      Resume <span style={{ color: C.muted, fontWeight: 400 }}>(optional — for match scoring)</span>
+                    </label>
+                    <label style={{ fontSize: 9, letterSpacing: "0.12em", textTransform: "uppercase", color: C.gold, fontFamily: C.mono, fontWeight: 700, cursor: "pointer", border: `1px solid ${C.goldBorder}`, padding: "4px 12px", borderRadius: 2, background: C.goldBg }}>
+                      {resumeFileName ? `✓ ${resumeFileName.slice(0, 20)}` : "↑ Upload PDF / TXT"}
+                      <input type="file" accept=".pdf,.txt" style={{ display: "none" }} onChange={e => e.target.files[0] && handleResumeFile(e.target.files[0])} />
+                    </label>
+                  </div>
                   <textarea
                     style={{ width: "100%", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 2, color: C.text, fontFamily: C.mono, fontSize: 12, padding: "16px 18px", resize: "vertical", lineHeight: 1.75, minHeight: 150, transition: "all 0.15s" }}
-                    placeholder="Paste your resume text..."
+                    placeholder="Paste your resume text, or upload a PDF/TXT above..."
                     value={resume}
-                    onChange={e => setResume(e.target.value)}
+                    onChange={e => { setResume(e.target.value); setResumeFileName(""); }}
                   />
                 </div>
 
