@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const C = {
   bg: "#efefed",
@@ -35,19 +35,28 @@ async function extractTextFromPDF(file) {
     const reader = new FileReader();
     reader.onload = async (e) => {
       try {
-        const typedArray = new Uint8Array(e.target.result);
-        const pdfjsLib = window['pdfjs-dist/build/pdf'];
-        if (!pdfjsLib) { resolve(""); return; }
-        pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
-        const pdf = await pdfjsLib.getDocument({ data: typedArray }).promise;
-        let text = "";
-        for (let i = 1; i <= pdf.numPages; i++) {
-          const page = await pdf.getPage(i);
-          const content = await page.getTextContent();
-          text += content.items.map(item => item.str).join(" ") + "\n";
+        const { pdfjsLib } = globalThis;
+        if (pdfjsLib) {
+          pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+          const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(e.target.result) }).promise;
+          let text = "";
+          for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const content = await page.getTextContent();
+            text += content.items.map(item => item.str).join(" ") + "\n";
+          }
+          resolve(text.trim());
+        } else {
+          // Fallback: try reading as plain text
+          const textReader = new FileReader();
+          textReader.onload = (te) => resolve(te.target.result || "");
+          textReader.readAsText(file);
         }
-        resolve(text.trim());
-      } catch { resolve(""); }
+      } catch {
+        const textReader = new FileReader();
+        textReader.onload = (te) => resolve(te.target.result || "");
+        textReader.readAsText(file);
+      }
     };
     reader.readAsArrayBuffer(file);
   });
@@ -104,6 +113,15 @@ export default function JDAnalyzer() {
   const [activeTab, setActiveTab] = useState("structure");
   const [error, setError] = useState("");
   const [step, setStep] = useState("input");
+
+  useEffect(() => {
+    const script = document.createElement("script");
+    script.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+    script.onload = () => {
+      globalThis.pdfjsLib = window["pdfjs-dist/build/pdf"];
+    };
+    document.head.appendChild(script);
+  }, []);
 
   async function handleJdFile(file) {
     if (file.type === "application/pdf") {
@@ -291,7 +309,6 @@ Return ONLY raw JSON (no markdown, no backticks). Use this exact structure:
   return (
     <>
       <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
-      <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
       <style>{`
         * { box-sizing: border-box; }
         body { margin: 0; background: ${C.bg}; }
