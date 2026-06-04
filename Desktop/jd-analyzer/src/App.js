@@ -144,7 +144,7 @@ Return ONLY raw JSON (no markdown, no backticks, no explanation). Use this exact
         headers: {
           "Content-Type": "application/json",
           "anthropic-dangerous-direct-browser-access": "true",
-          "x-api-key": "YOUR_API_KEY_HERE",
+          "x-api-key": process.env.REACT_APP_API_KEY,
           "anthropic-version": "2023-06-01",
         },
         body: JSON.stringify({
