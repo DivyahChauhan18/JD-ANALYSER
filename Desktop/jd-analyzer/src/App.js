@@ -28,7 +28,6 @@ const C = {
 
 function scoreColor(s) { return s >= 75 ? C.success : s >= 50 ? C.warn : C.danger; }
 function scoreBg(s) { return s >= 75 ? C.successBg : s >= 50 ? C.warnBg : C.dangerBg; }
-function scoreBorder(s) { return s >= 75 ? C.successBorder : s >= 50 ? C.warnBorder : C.dangerBorder; }
 function scoreLabel(s) { return s >= 75 ? "Strong" : s >= 50 ? "Moderate" : "Weak"; }
 
 function Chip({ children, type }) {
