@@ -254,10 +254,14 @@ export default function JDAnalyzer() {
     if (!jd.trim()) return;
     setLoading(true); setResult(null); setError("");
     const hasResume = resume.trim().length > 0;
+    // Sanitize text — remove special chars that break JSON parsing
+    const clean = t => t.replace(/[\u0000-\u001F\u007F-\u009F]/g, " ").replace(/[^\x00-\x7F]/g, c => c === "₹" ? "INR" : " ").trim();
+    const cleanJd = clean(jd);
+    const cleanResume = clean(resume);
     const prompt = `You are an expert HR analyst. Analyze the Job Description${hasResume ? " and Resume" : ""} below.
-JOB DESCRIPTION:\n${jd}${hasResume ? `\nRESUME:\n${resume}` : ""}
+JOB DESCRIPTION:\n${cleanJd}${hasResume ? `\nRESUME:\n${cleanResume}` : ""}
 Return ONLY raw JSON (no markdown, no backticks):
-{"overallScore":72,"structure":{"missingSections":["Benefits & perks"],"presentSections":["Role overview"],"suggestions":["Add team size context"]},"bias":{"flaggedPhrases":["rockstar"],"inclusivityScore":65,"improvements":["Replace 'rockstar' with 'high-performing'"]},"keywords":{"strong":["talent acquisition"],"missing":["ATS","HRBP"],"seoTips":["Add role level in title"]},"salary":{"transparent":false,"observation":"No salary range mentioned.","recommendation":"Include a salary band."}${hasResume ? `,"resumeMatch":{"matchScore":58,"strengths":["Strong coordination experience"],"gaps":["No ATS experience"],"verdict":"Transferable skills but lacks direct HR ops experience."}` : ""}}`;
+{"overallScore":72,"structure":{"missingSections":["Benefits & perks"],"presentSections":["Role overview"],"suggestions":["Add team size context"]},"bias":{"flaggedPhrases":["rockstar"],"inclusivityScore":65,"improvements":["Replace rockstar with high-performing"]},"keywords":{"strong":["talent acquisition"],"missing":["ATS","HRBP"],"seoTips":["Add role level in title"]},"salary":{"transparent":false,"observation":"No salary range mentioned.","recommendation":"Include a salary band."}${hasResume ? `,"resumeMatch":{"matchScore":58,"strengths":["Strong coordination experience"],"gaps":["No ATS experience"],"verdict":"Transferable skills but lacks direct HR ops experience."}` : ""}}`;
 
     try {
       const res = await fetch("/api/v1/messages", {
@@ -274,8 +278,15 @@ Return ONLY raw JSON (no markdown, no backticks):
       const data = await res.json();
       const raw = data.content?.map(i => i.text || "").join("") || "";
       const match = raw.match(/\{[\s\S]*\}/);
-      if (!match) { setError("Failed to parse response."); setLoading(false); return; }
-      setResult(JSON.parse(match[0]));
+      if (!match) { setError("Failed to parse response. Please try again."); setLoading(false); return; }
+      try {
+        setResult(JSON.parse(match[0]));
+      } catch {
+        // Try to extract just the valid JSON portion
+        const cleaned = match[0].replace(/[\u0000-\u001F\u007F-\u009F]/g, " ");
+        try { setResult(JSON.parse(cleaned)); }
+        catch { setError("JSON parse error. Please try again."); setLoading(false); return; }
+      }
       setActiveTab("structure");
       setStep("results");
     } catch (e) { setError(e.message); }
