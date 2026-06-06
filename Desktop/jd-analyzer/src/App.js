@@ -254,8 +254,8 @@ export default function JDAnalyzer() {
     if (!jd.trim()) return;
     setLoading(true); setResult(null); setError("");
     const hasResume = resume.trim().length > 0;
-    // Sanitize text — remove special chars that break JSON parsing
-    const clean = t => t.replace(/[\u0000-\u001F\u007F-\u009F]/g, " ").replace(/[^\x00-\x7F]/g, c => c === "₹" ? "INR" : " ").trim();
+    // Sanitize text — remove chars that break JSON parsing
+    const clean = t => t.split("").filter(c => c.charCodeAt(0) >= 32 || c === "\n" || c === "\t").join("").replace(/₹/g, "INR").replace(/•/g, "-").trim();
     const cleanJd = clean(jd);
     const cleanResume = clean(resume);
     const prompt = `You are an expert HR analyst. Analyze the Job Description${hasResume ? " and Resume" : ""} below.
@@ -283,7 +283,7 @@ Return ONLY raw JSON (no markdown, no backticks):
         setResult(JSON.parse(match[0]));
       } catch {
         // Try to extract just the valid JSON portion
-        const cleaned = match[0].replace(/[\u0000-\u001F\u007F-\u009F]/g, " ");
+        const cleaned = match[0].split("").filter(c => c.charCodeAt(0) >= 32 || c === "\n").join("");
         try { setResult(JSON.parse(cleaned)); }
         catch { setError("JSON parse error. Please try again."); setLoading(false); return; }
       }
