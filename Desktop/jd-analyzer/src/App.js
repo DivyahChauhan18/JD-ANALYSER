@@ -95,8 +95,6 @@ function CountUp({ target, duration = 1200 }) {
 function ScoreDisplay({ score }) {
   const display = CountUp({ target: score });
   const col = scoreColor(score);
-  const circumference = 2 * Math.PI * 44;
-  const filled = (display / 100) * circumference * 0.75;
   const size = 140;
   const cx = size / 2, cy = size / 2, R = 44;
   const toRad = d => d * Math.PI / 180;
