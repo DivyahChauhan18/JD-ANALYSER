@@ -40,7 +40,6 @@ const EASE = "cubic-bezier(0.23, 1, 0.32, 1)";
 
 /* ── Helpers ── */
 function scoreColor(s)  { return s >= 75 ? C.sage   : s >= 50 ? C.amber   : C.crimson; }
-function scorePale(s)   { return s >= 75 ? C.sagePale : s >= 50 ? C.amberPale : C.crimsonPale; }
 function scoreLabel(s)  { return s >= 75 ? "Strong"  : s >= 50 ? "Moderate" : "Weak"; }
 function scoreVerdict(s){ return s >= 75 ? "This JD is well-crafted and complete." : s >= 50 ? "This JD has meaningful room for improvement." : "This JD needs significant revision before posting."; }
 
