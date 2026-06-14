@@ -300,11 +300,24 @@ export default function JDAnalyzer() {
     if (!jd.trim()) return;
     setLoading(true); setResult(null); setError("");
     const hasResume = resume.trim().length > 0;
-    const clean = t => t.split("").filter(c=>c.charCodeAt(0)>=32||c==="\n"||c==="\t").join("").replace(/₹/g,"INR").replace(/•/g,"-").trim();
-    const prompt = `You are an expert HR analyst. Analyze the following.
-JOB DESCRIPTION:\n${clean(jd)}${hasResume?`\nRESUME:\n${clean(resume)}`:""}
-Return ONLY raw JSON, no markdown:
-{"overallScore":72,"structure":{"missingSections":["Benefits"],"presentSections":["Role overview","Responsibilities"],"suggestions":["Add team size context"]},"bias":{"flaggedPhrases":["rockstar","ninja"],"inclusivityScore":65,"improvements":["Replace rockstar with high-performing"]},"keywords":{"strong":["talent acquisition","onboarding"],"missing":["ATS","HRBP","OKR"],"seoTips":["Add seniority level to title"]},"salary":{"transparent":false,"observation":"No salary range disclosed.","recommendation":"Add a salary band to increase applicant quality."}${hasResume?`,"resumeMatch":{"matchScore":58,"strengths":["Strong coordination experience","Event management"],"gaps":["No ATS experience","No data analytics"],"verdict":"Transferable skills present but lacks direct HR ops background."}`:""}}`
+    const clean = t => t
+      .split("").filter(c=>c.charCodeAt(0)>=32||c==="\n"||c==="\t").join("")
+      .replace(/₹/g,"INR").replace(/•/g,"-")
+      .replace(/([A-Z])\s([A-Z])\s([A-Z])/g, "$1$2$3") // collapse spaced caps like "P R O F"
+      .replace(/\s{3,}/g," ") // collapse excessive whitespace
+      .replace(/[^\x00-\x7F]/g, "") // strip non-ASCII
+      .trim()
+      .slice(0, 6000); // cap length to avoid token issues
+    const prompt = `You are an expert HR analyst. Analyze the following and return ONLY a JSON object.
+CRITICAL: Your response must be valid JSON only. No markdown. No backticks. No explanation. Start with { and end with }.
+Do not include any resume or JD text in your response. Only include your analysis.
+
+JOB DESCRIPTION:
+${clean(jd)}
+${hasResume ? `RESUME:\n${clean(resume)}` : ""}
+
+Return this exact JSON structure with your analysis filled in:
+{"overallScore":72,"structure":{"missingSections":["Benefits"],"presentSections":["Role overview","Responsibilities"],"suggestions":["Add team size context"]},"bias":{"flaggedPhrases":["rockstar","ninja"],"inclusivityScore":65,"improvements":["Replace rockstar with high-performing"]},"keywords":{"strong":["talent acquisition","onboarding"],"missing":["ATS","HRBP","OKR"],"seoTips":["Add seniority level to title"]},"salary":{"transparent":false,"observation":"No salary range disclosed","recommendation":"Add a salary band to increase applicant quality"}${hasResume ? `,"resumeMatch":{"matchScore":58,"strengths":["Strong coordination experience"],"gaps":["No ATS experience"],"verdict":"Transferable skills present but lacks direct HR ops background"}` : ""}}`
 
     try {
       const res = await fetch("/api/v1/messages", {
@@ -315,17 +328,36 @@ Return ONLY raw JSON, no markdown:
       if (!res.ok) { setError(`HTTP ${res.status}`); setLoading(false); return; }
       const data = await res.json();
       const raw = data.content?.map(i=>i.text||"").join("")||"";
-      const match = raw.match(/\{[\s\S]*\}/);
+      // Strip markdown fences if present
+      const stripped = raw.replace(/```json\s*/g,"").replace(/```\s*/g,"").trim();
+      const match = stripped.match(/\{[\s\S]*\}/);
       if (!match) { setError("Could not parse response. Please try again."); setLoading(false); return; }
-      try {
-        setResult(JSON.parse(match[0]));
-        setTab("structure");
-        setStep("results");
-      } catch {
-        const cleaned = match[0].split("").filter(c=>c.charCodeAt(0)>=32||c==="\n").join("");
-        try { setResult(JSON.parse(cleaned)); setTab("structure"); setStep("results"); }
-        catch { setError("Parse error. Please try again."); }
+      let parsed = null;
+      // Try 1: direct parse
+      try { parsed = JSON.parse(match[0]); } catch {}
+      // Try 2: strip non-ASCII and control chars
+      if (!parsed) {
+        try {
+          const cleaned = match[0].replace(/[^\x20-\x7E\n\r\t]/g,"").replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g,"");
+          parsed = JSON.parse(cleaned);
+        } catch {}
       }
+      // Try 3: extract just the structure we need
+      if (!parsed) {
+        try {
+          const safe = match[0]
+            .replace(/[\u2018\u2019]/g,"'")
+            .replace(/[\u201C\u201D]/g,'"')
+            .replace(/\n/g," ")
+            .replace(/\r/g,"")
+            .replace(/[\x00-\x1F\x7F]/g,"");
+          parsed = JSON.parse(safe);
+        } catch {}
+      }
+      if (!parsed) { setError("Parse error. Please try again , avoid pasting PDFs with unusual characters."); setLoading(false); return; }
+      setResult(parsed);
+      setTab("structure");
+      setStep("results");
     } catch(e) { setError(e.message); }
     setLoading(false);
   }
