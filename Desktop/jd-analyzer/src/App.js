@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import React, { useRef } from "react";
+import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 /* ═══════════════════════════════════════════════════════════
@@ -572,7 +572,6 @@ Return this exact JSON structure with your analysis filled in:
 
   function renderCard(dim, r, expanded, setExpanded) {
     const isExpanded = expanded === dim.id;
-    const isMatch = dim.id === "match";
 
     let summary = "";
     let content = null;
