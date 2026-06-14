@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import React, { useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 /* ═══════════════════════════════════════════════════════════
@@ -205,15 +206,154 @@ function Chip({ children, type }) {
   );
 }
 
-/* ── Textarea with scan line on focus (restored) ── */
+/* ── Bias flags for live detection ── */
+const BIAS_WORDS = [
+  "rockstar","ninja","wizard","guru","hustler","hungry","aggressive",
+  "young","energetic","digital native","male","female","manpower",
+  "go-getter","superhero","killer","dominate","crush it","killing it",
+  "work hard play hard","culture fit","must be available","no excuses"
+];
+
+function detectBias(text) {
+  const lower = text.toLowerCase();
+  return BIAS_WORDS.filter(w => lower.includes(w));
+}
+
+function wordCount(text) {
+  return text.trim() === "" ? 0 : text.trim().split(/\s+/).length;
+}
+
+/* ── JD Field , all 5 interactive features ── */
+function JDField({ value, onChange, placeholder, minHeight=200 }) {
+  const [focused, setFocused] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  const [scanPct, setScanPct] = useState(0);
+  const [mousePos, setMousePos] = useState({ x:0.5, y:0.5 });
+  const containerRef = React.useRef(null);
+  const prevLenRef = React.useRef(0);
+  const scanRef = React.useRef(null);
+
+  const words = wordCount(value);
+  const biasFlags = detectBias(value);
+  const fillPct = Math.min((words / 150) * 100, 100);
+  const fillColor = fillPct < 33 ? C.red : fillPct < 66 ? C.amber : C.green;
+  const isReady = words >= 50;
+
+  // Option 4: scan on paste detection
+  useEffect(() => {
+    const newLen = value.length;
+    if (newLen > prevLenRef.current + 80) {
+      // Large paste detected
+      setScanning(true);
+      setScanPct(0);
+      let start = null;
+      const duration = 1400;
+      const tick = (ts) => {
+        if (!start) start = ts;
+        const p = Math.min((ts - start) / duration, 1);
+        setScanPct(p * 100);
+        if (p < 1) { scanRef.current = requestAnimationFrame(tick); }
+        else { setScanning(false); setScanPct(0); }
+      };
+      if (scanRef.current) cancelAnimationFrame(scanRef.current);
+      scanRef.current = requestAnimationFrame(tick);
+    }
+    prevLenRef.current = newLen;
+    return () => { if (scanRef.current) cancelAnimationFrame(scanRef.current); };
+  }, [value]);
+
+  // Option 5: magnetic cursor
+  function handleMouseMove(e) {
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    setMousePos({
+      x: (e.clientX - rect.left) / rect.width,
+      y: (e.clientY - rect.top) / rect.height,
+    });
+  }
+
+  const magnetX = (mousePos.x - 0.5) * 6;
+  const magnetY = (mousePos.y - 0.5) * 4;
+  const borderGlow = focused
+    ? `0 0 0 2px ${C.blue}50, ${magnetX}px ${magnetY}px 20px ${C.blueTrace}`
+    : `${magnetX * 0.5}px ${magnetY * 0.5}px 12px rgba(37,99,235,0.04)`;
+
+  return (
+    <div>
+      <div
+        ref={containerRef}
+        onMouseMove={handleMouseMove}
+        onMouseLeave={() => setMousePos({ x:0.5, y:0.5 })}
+        style={{
+          border:`1px solid ${focused ? C.blue : C.border}`,
+          borderRadius:8, overflow:"hidden", background:C.surface,
+          position:"relative",
+          boxShadow: borderGlow,
+          transform: `perspective(800px) rotateX(${-magnetY * 0.15}deg) rotateY(${magnetX * 0.15}deg)`,
+          transition: focused ? "box-shadow 150ms ease" : "box-shadow 300ms ease, transform 300ms ease",
+        }}
+      >
+        {/* Option 2: bias word highlight overlay */}
+        {value && biasFlags.length > 0 && (
+          <div style={{ position:"absolute", inset:0, pointerEvents:"none", padding:"16px 18px", fontFamily:C.mono, fontSize:13, fontWeight:500, lineHeight:1.8, whiteSpace:"pre-wrap", wordBreak:"break-word", color:"transparent", zIndex:1 }}>
+            {value.split(new RegExp(`(${biasFlags.map(w => w.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")).join("|")})`, "gi")).map((part, i) => {
+              const isFlag = biasFlags.some(w => part.toLowerCase() === w.toLowerCase());
+              return isFlag
+                ? <mark key={i} style={{ background:"rgba(217,119,6,0.30)", color:"transparent", borderRadius:2 }}>{part}</mark>
+                : <span key={i}>{part}</span>;
+            })}
+          </div>
+        )}
+
+        <textarea
+          value={value} onChange={onChange} placeholder={placeholder}
+          onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
+          style={{ width:"100%", background:"transparent", border:"none", outline:"none", fontFamily:C.mono, fontSize:13, fontWeight:500, color:C.ink, padding:"16px 18px", resize:"vertical", lineHeight:1.8, minHeight, caretColor:C.blue, boxSizing:"border-box", position:"relative", zIndex:2 }}
+        />
+
+        {/* Option 4: paste scan sweep */}
+        {scanning && (
+          <div style={{ position:"absolute", left:0, right:0, top:`${scanPct}%`, height:2, background:`linear-gradient(90deg, transparent, ${C.blue}CC, transparent)`, pointerEvents:"none", zIndex:3, boxShadow:`0 0 8px ${C.blue}80` }}/>
+        )}
+
+        {/* Existing scan line on focus */}
+        {focused && !scanning && (
+          <div style={{ position:"absolute", left:0, right:0, top:0, height:2, background:`linear-gradient(90deg, transparent, ${C.blue}, transparent)`, animation:"scanLine 2s ease-in-out infinite", pointerEvents:"none", zIndex:3 }}/>
+        )}
+      </div>
+
+      {/* Option 1: fill bar + live stats */}
+      <div style={{ marginTop:8, display:"flex", alignItems:"center", gap:12 }}>
+        <div style={{ flex:1, height:2, background:C.raised, borderRadius:1, overflow:"hidden" }}>
+          <div style={{ height:"100%", width:`${fillPct}%`, background:fillColor, borderRadius:1, transition:"width 300ms ease, background 300ms ease" }}/>
+        </div>
+        <div style={{ display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
+          <span style={{ fontFamily:C.mono, fontSize:10, color:C.inkDim }}>
+            {words} <span style={{ color:C.inkFaint }}>words</span>
+          </span>
+          {biasFlags.length > 0 && (
+            <span style={{ fontFamily:C.mono, fontSize:10, color:C.amber, display:"flex", alignItems:"center", gap:4 }}>
+              <svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M4 1L7 7H1L4 1Z" stroke={C.amber} strokeWidth="1" strokeLinejoin="round"/></svg>
+              {biasFlags.length} flag{biasFlags.length>1?"s":""}
+            </span>
+          )}
+          {isReady && biasFlags.length === 0 && (
+            <span style={{ fontFamily:C.mono, fontSize:10, color:C.green, display:"flex", alignItems:"center", gap:4 }}>
+              <svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M1 4l2 2 4-4" stroke={C.green} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              Ready
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Textarea with scan line on focus (for resume field) ── */
 function Field({ value, onChange, placeholder, minHeight=200 }) {
   const [focused, setFocused] = useState(false);
   return (
-    <motion.div
-      animate={{ borderColor: focused ? C.blue : C.border, boxShadow: focused ? `0 0 0 3px ${C.blueTrace}` : "none" }}
-      transition={{ duration:0.14 }}
-      style={{ border:`1px solid ${C.border}`, borderRadius:8, overflow:"hidden", background:C.surface, position:"relative" }}
-    >
+    <div style={{ border:`1px solid ${focused ? C.blue : C.border}`, borderRadius:8, overflow:"hidden", background:C.surface, position:"relative", transition:"border-color 150ms ease, box-shadow 150ms ease", boxShadow: focused ? `0 0 0 2px ${C.blue}30` : "none" }}>
       <textarea value={value} onChange={onChange} placeholder={placeholder}
         onFocus={()=>setFocused(true)} onBlur={()=>setFocused(false)}
         style={{ width:"100%", background:"transparent", border:"none", outline:"none", fontFamily:C.mono, fontSize:13, fontWeight:500, color:C.ink, padding:"16px 18px", resize:"vertical", lineHeight:1.8, minHeight, caretColor:C.blue, boxSizing:"border-box" }}
@@ -221,7 +361,7 @@ function Field({ value, onChange, placeholder, minHeight=200 }) {
       {focused && (
         <div style={{ position:"absolute", left:0, right:0, top:0, height:2, background:`linear-gradient(90deg, transparent, ${C.blue}, transparent)`, animation:"scanLine 2s ease-in-out infinite", pointerEvents:"none" }}/>
       )}
-    </motion.div>
+    </div>
   );
 }
 
@@ -280,7 +420,7 @@ export default function JDAnalyzer() {
   const [resFile, setResFile] = useState("");
   const [result, setResult]   = useState(null);
   const [loading, setLoading] = useState(false);
-  const [tab, setTab]         = useState("structure");
+  const [expanded, setExpanded] = useState(null);
   const [error, setError]     = useState("");
   const [step, setStep]       = useState("input");
 
@@ -368,108 +508,210 @@ Return this exact JSON structure with your analysis filled in:
       }
       if (!parsed) { setError("Parse error. Please try again , avoid pasting PDFs with unusual characters."); setLoading(false); return; }
       setResult(parsed);
-      setTab("structure");
+      setExpanded(null);
       setStep("results");
     } catch(e) { setError(e.message); }
     setLoading(false);
   }
 
-  const tabs = [
-    { id:"structure", label:"Structure" },
-    { id:"bias",      label:"Bias" },
-    { id:"keywords",  label:"Keywords" },
-    { id:"salary",    label:"Salary" },
-    ...(result?.resumeMatch ? [{ id:"match", label:"Resume Match" }] : []),
+  const DIMENSIONS = [
+    {
+      id: "structure",
+      label: "Structure",
+      color: "#2563EB",
+      pale: "rgba(37,99,235,0.10)",
+      border: "rgba(37,99,235,0.22)",
+      icon: (
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <rect x="1" y="2" width="14" height="2.5" rx="1" fill="#2563EB" opacity="0.9"/>
+          <rect x="1" y="6.5" width="9" height="2.5" rx="1" fill="#2563EB" opacity="0.6"/>
+          <rect x="1" y="11" width="11" height="2.5" rx="1" fill="#2563EB" opacity="0.75"/>
+        </svg>
+      ),
+    },
+    {
+      id: "bias",
+      label: "Bias",
+      color: "#DC2626",
+      pale: "rgba(220,38,38,0.10)",
+      border: "rgba(220,38,38,0.22)",
+      icon: (
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <path d="M8 2L14 13H2L8 2Z" stroke="#DC2626" strokeWidth="1.5" strokeLinejoin="round"/>
+          <path d="M8 6v3.5M8 11.5v.5" stroke="#DC2626" strokeWidth="1.5" strokeLinecap="round"/>
+        </svg>
+      ),
+    },
+    {
+      id: "keywords",
+      label: "Keywords",
+      color: "#059669",
+      pale: "rgba(5,150,105,0.10)",
+      border: "rgba(5,150,105,0.22)",
+      icon: (
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <path d="M2 8h4M10 8h4M8 2v4M8 10v4" stroke="#059669" strokeWidth="1.5" strokeLinecap="round"/>
+          <circle cx="8" cy="8" r="2" stroke="#059669" strokeWidth="1.5"/>
+        </svg>
+      ),
+    },
+    {
+      id: "salary",
+      label: "Salary",
+      color: "#D97706",
+      pale: "rgba(217,119,6,0.10)",
+      border: "rgba(217,119,6,0.22)",
+      icon: (
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <circle cx="8" cy="8" r="6" stroke="#D97706" strokeWidth="1.5"/>
+          <path d="M8 4.5v7M6 6.5c0-.8.9-1.5 2-1.5s2 .7 2 1.5S9 8 8 8s-2 .7-2 1.5S7 11 8 11s2-.7 2-1.5" stroke="#D97706" strokeWidth="1.3" strokeLinecap="round"/>
+        </svg>
+      ),
+    },
   ];
 
-  function renderTab() {
-    if (!result) return null;
-    const r = result;
-    const stagger = (items, type) => items.map((s,i) => <Row key={i} text={s} type={type} index={i}/>);
+  function renderCard(dim, r, expanded, setExpanded) {
+    const isExpanded = expanded === dim.id;
+    const isMatch = dim.id === "match";
 
-    switch(tab) {
-      case "structure": return (
-        <motion.div key="structure" initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }} transition={{ duration:0.12 }}>
-          <Section label="Missing sections" accent={C.red}>
+    let summary = "";
+    let content = null;
+
+    if (dim.id === "structure") {
+      const missing = r.structure.missingSections.length;
+      summary = missing === 0 ? "All sections present" : `${missing} section${missing>1?"s":""} missing`;
+      content = (
+        <>
+          <CardSection label="Missing" color={C.red}>
             {r.structure.missingSections.length===0
               ? <p style={{ fontFamily:C.sans, fontSize:13, color:C.green, margin:0 }}>All key sections present.</p>
-              : stagger(r.structure.missingSections, "missing")}
-          </Section>
-          <Section label="Present sections" accent={C.green}>
-            {stagger(r.structure.presentSections, "match")}
-          </Section>
-          <Section label="Suggestions" accent={C.amber}>
-            {stagger(r.structure.suggestions, "neutral")}
-          </Section>
-        </motion.div>
+              : r.structure.missingSections.map((s,i)=><Row key={i} text={s} type="missing" index={i}/>)}
+          </CardSection>
+          <CardSection label="Present" color={C.green}>
+            {r.structure.presentSections.map((s,i)=><Row key={i} text={s} type="match" index={i}/>)}
+          </CardSection>
+          <CardSection label="Suggestions" color={C.amber}>
+            {r.structure.suggestions.map((s,i)=><Row key={i} text={s} type="neutral" index={i}/>)}
+          </CardSection>
+        </>
       );
-      case "bias": return (
-        <motion.div key="bias" initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }} transition={{ duration:0.12 }}>
-          <Section label="Inclusivity score" accent={scoreColor(r.bias.inclusivityScore)}>
-            <div style={{ paddingBottom:4 }}><ScoreMini score={r.bias.inclusivityScore}/></div>
-          </Section>
-          <Section label="Flagged phrases" accent={C.red}>
-            {r.bias.flaggedPhrases.length===0
-              ? <p style={{ fontFamily:C.sans, fontSize:13, color:C.green, margin:0 }}>No biased language detected.</p>
-              : <div>{r.bias.flaggedPhrases.map((p,i)=><Chip key={i} type="missing">{p}</Chip>)}</div>}
-          </Section>
-          <Section label="Improvements" accent={C.amber}>
-            {stagger(r.bias.improvements, "neutral")}
-          </Section>
-        </motion.div>
-      );
-      case "keywords": return (
-        <motion.div key="keywords" initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }} transition={{ duration:0.12 }}>
-          <Section label="Strong keywords" accent={C.green}>
-            <div>{r.keywords.strong.map((k,i)=><Chip key={i} type="match">{k}</Chip>)}</div>
-          </Section>
-          <Section label="Missing keywords" accent={C.red}>
-            <div>{r.keywords.missing.map((k,i)=><Chip key={i} type="missing">{k}</Chip>)}</div>
-          </Section>
-          <Section label="SEO tips" accent={C.amber}>
-            {stagger(r.keywords.seoTips, "neutral")}
-          </Section>
-        </motion.div>
-      );
-      case "salary": return (
-        <motion.div key="salary" initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }} transition={{ duration:0.12 }}>
-          <Section label="Transparency" accent={r.salary.transparent?C.green:C.red}>
-            <div style={{ display:"flex", alignItems:"center", gap:10, padding:"6px 0" }}>
-              <div style={{ width:32, height:32, borderRadius:6, background:r.salary.transparent?C.greenPale:C.redPale, border:`1px solid ${r.salary.transparent?C.green+"40":C.red+"40"}`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-                {r.salary.transparent
-                  ? <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7l3.5 3.5L12 3.5" stroke={C.green} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                  : <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 3l8 8M11 3l-8 8" stroke={C.red} strokeWidth="1.5" strokeLinecap="round"/></svg>
-                }
-              </div>
-              <span style={{ fontFamily:C.sans, fontSize:14, fontWeight:500, color:r.salary.transparent?C.green:C.red }}>
-                {r.salary.transparent ? "Salary disclosed" : "No salary range"}
-              </span>
-            </div>
-          </Section>
-          <Section label="Observation" accent={C.amber}>
-            <Row text={r.salary.observation} type="neutral" index={0}/>
-          </Section>
-          <Section label="Recommendation" accent={C.blue}>
-            <Row text={r.salary.recommendation} type="neutral" index={0}/>
-          </Section>
-        </motion.div>
-      );
-      case "match": return r.resumeMatch ? (
-        <motion.div key="match" initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }} transition={{ duration:0.12 }}>
-          <Section label="Match score" accent={scoreColor(r.resumeMatch.matchScore)}>
-            <div style={{ paddingBottom:4 }}><ScoreMini score={r.resumeMatch.matchScore}/></div>
-            <p style={{ fontFamily:C.sans, fontSize:13, color:C.inkDim, lineHeight:1.7, margin:"12px 0 0" }}>{r.resumeMatch.verdict}</p>
-          </Section>
-          <Section label="Strengths" accent={C.green}>
-            {stagger(r.resumeMatch.strengths, "match")}
-          </Section>
-          <Section label="Gaps" accent={C.red}>
-            {stagger(r.resumeMatch.gaps, "missing")}
-          </Section>
-        </motion.div>
-      ) : null;
-      default: return null;
     }
+
+    if (dim.id === "bias") {
+      const flagged = r.bias.flaggedPhrases.length;
+      summary = flagged === 0 ? "No biased language" : `${flagged} phrase${flagged>1?"s":""} flagged`;
+      content = (
+        <>
+          <div style={{ display:"flex", alignItems:"center", gap:12, padding:"4px 0 16px", borderBottom:`1px solid ${C.border}` }}>
+            <ScoreMini score={r.bias.inclusivityScore}/>
+          </div>
+          <CardSection label="Flagged phrases" color={C.red}>
+            {flagged===0
+              ? <p style={{ fontFamily:C.sans, fontSize:13, color:C.green, margin:0 }}>No biased language detected.</p>
+              : <div style={{ paddingTop:4 }}>{r.bias.flaggedPhrases.map((p,i)=><Chip key={i} type="missing">{p}</Chip>)}</div>}
+          </CardSection>
+          <CardSection label="Improvements" color={C.amber}>
+            {r.bias.improvements.map((s,i)=><Row key={i} text={s} type="neutral" index={i}/>)}
+          </CardSection>
+        </>
+      );
+    }
+
+    if (dim.id === "keywords") {
+      const missing = r.keywords.missing.length;
+      const strong = r.keywords.strong.length;
+      summary = `${strong} strong, ${missing} missing`;
+      content = (
+        <>
+          <CardSection label="Strong" color={C.green}>
+            <div style={{ paddingTop:4 }}>{r.keywords.strong.map((k,i)=><Chip key={i} type="match">{k}</Chip>)}</div>
+          </CardSection>
+          <CardSection label="Missing" color={C.red}>
+            <div style={{ paddingTop:4 }}>{r.keywords.missing.map((k,i)=><Chip key={i} type="missing">{k}</Chip>)}</div>
+          </CardSection>
+          <CardSection label="SEO tips" color={C.amber}>
+            {r.keywords.seoTips.map((s,i)=><Row key={i} text={s} type="neutral" index={i}/>)}
+          </CardSection>
+        </>
+      );
+    }
+
+    if (dim.id === "salary") {
+      summary = r.salary.transparent ? "Salary disclosed" : "No salary range";
+      content = (
+        <>
+          <div style={{ display:"flex", alignItems:"center", gap:10, padding:"4px 0 16px", borderBottom:`1px solid ${C.border}` }}>
+            <div style={{ width:32, height:32, borderRadius:6, background:r.salary.transparent?C.greenPale:C.redPale, border:`1px solid ${r.salary.transparent?C.green+"40":C.red+"40"}`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+              {r.salary.transparent
+                ? <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7l3.5 3.5L12 3.5" stroke={C.green} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                : <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 3l8 8M11 3l-8 8" stroke={C.red} strokeWidth="1.5" strokeLinecap="round"/></svg>
+              }
+            </div>
+            <span style={{ fontFamily:C.sans, fontSize:14, fontWeight:500, color:r.salary.transparent?C.green:C.red }}>
+              {r.salary.transparent ? "Salary disclosed" : "No salary range"}
+            </span>
+          </div>
+          <CardSection label="Observation" color={C.amber}>
+            <Row text={r.salary.observation} type="neutral" index={0}/>
+          </CardSection>
+          <CardSection label="Recommendation" color={C.blue}>
+            <Row text={r.salary.recommendation} type="neutral" index={0}/>
+          </CardSection>
+        </>
+      );
+    }
+
+    return (
+      <motion.div
+        key={dim.id}
+        initial={{ opacity:0, y:10 }}
+        animate={{ opacity:1, y:0 }}
+        transition={{ ...SP.arrive, delay:DIMENSIONS.findIndex(d=>d.id===dim.id)*0.06 }}
+        style={{ border:`1px solid ${isExpanded ? dim.border : C.border}`, borderRadius:10, overflow:"hidden", background:C.surface, transition:"border-color 200ms ease" }}
+      >
+        {/* Card header , always visible */}
+        <div
+          onClick={()=>setExpanded(isExpanded ? null : dim.id)}
+          style={{ padding:"18px 20px", display:"flex", alignItems:"center", justifyContent:"space-between", cursor:"pointer", borderBottom: isExpanded ? `1px solid ${C.border}` : "none" }}
+        >
+          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+            <div style={{ width:32, height:32, borderRadius:8, background:dim.pale, border:`1px solid ${dim.border}`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+              {dim.icon}
+            </div>
+            <div>
+              <div style={{ fontFamily:C.mono, fontSize:10, fontWeight:700, color:dim.color, letterSpacing:"0.12em", textTransform:"uppercase", marginBottom:3 }}>{dim.label}</div>
+              <div style={{ fontFamily:C.sans, fontSize:13, color:C.inkMid }}>{summary}</div>
+            </div>
+          </div>
+          <motion.div
+            animate={{ rotate: isExpanded ? 180 : 0 }}
+            transition={SP.snap}
+            style={{ color:C.inkDim, flexShrink:0 }}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </motion.div>
+        </div>
+
+        {/* Expanded content */}
+        <AnimatePresence>
+          {isExpanded && (
+            <motion.div
+              initial={{ height:0, opacity:0 }}
+              animate={{ height:"auto", opacity:1 }}
+              exit={{ height:0, opacity:0 }}
+              transition={{ duration:0.22, ease:[0.16,1,0.3,1] }}
+              style={{ overflow:"hidden" }}
+            >
+              <div style={{ padding:"16px 20px 20px" }}>
+                {content}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
+    );
   }
 
   return (
@@ -491,7 +733,7 @@ Return this exact JSON structure with your analysis filled in:
 
       <div style={{ minHeight:"100vh", background:C.bg, color:C.ink, fontFamily:C.sans }}>
 
-        {/* HEADER , minimal bar */}
+        {/* HEADER */}
         <header style={{ position:"sticky", top:0, zIndex:200, height:52, background:`${C.bg}F0`, backdropFilter:"blur(20px)", borderBottom:`1px solid ${C.border}`, display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 32px" }}>
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
             <div style={{ width:22, height:22, borderRadius:5, background:C.blue, display:"flex", alignItems:"center", justifyContent:"center" }}>
@@ -507,7 +749,7 @@ Return this exact JSON structure with your analysis filled in:
           {step==="results" && (
             <motion.button
               whileTap={{ scale:0.97, transition:SP.press }}
-              onClick={()=>{setStep("input");setResult(null);setError("");}}
+              onClick={()=>{setStep("input");setResult(null);setError("");setExpanded(null);}}
               style={{ fontFamily:C.mono, fontSize:10, color:C.inkDim, background:"transparent", border:`1px solid ${C.border}`, padding:"6px 14px", borderRadius:6, letterSpacing:"0.08em" }}
               onMouseEnter={e=>{e.currentTarget.style.borderColor=C.borderMid;e.currentTarget.style.color=C.ink;}}
               onMouseLeave={e=>{e.currentTarget.style.borderColor=C.border;e.currentTarget.style.color=C.inkDim;}}
@@ -524,7 +766,6 @@ Return this exact JSON structure with your analysis filled in:
               transition={{ duration:0.18, ease:[0.16,1,0.3,1] }}
               style={{ maxWidth:680, margin:"0 auto", padding:"56px 24px 100px" }}
             >
-              {/* Hero , left-aligned, not centered (Taste Skill Rule 3) */}
               <motion.div
                 variants={{ show:{ transition:{ staggerChildren:0.04, delayChildren:0.04 } } }}
                 initial="hidden" animate="show"
@@ -533,13 +774,29 @@ Return this exact JSON structure with your analysis filled in:
                 <motion.div variants={{ hidden:{opacity:0,y:6}, show:{opacity:1,y:0,transition:SP.arrive} }}>
                   <span style={{ fontFamily:C.mono, fontSize:9, color:C.blue, letterSpacing:"0.16em", textTransform:"uppercase" }}>HR Intelligence</span>
                 </motion.div>
-                <motion.h1 variants={{ hidden:{opacity:0,y:8}, show:{opacity:1,y:0,transition:{...SP.arrive,delay:0.04}} }}
+                {/* Option 6: reactive headline */}
+                <motion.h1
+                  variants={{ hidden:{opacity:0,y:8}, show:{opacity:1,y:0,transition:{...SP.arrive,delay:0.04}} }}
                   style={{ fontFamily:C.sans, fontWeight:700, fontSize:"clamp(34px,5vw,52px)", color:C.ink, letterSpacing:"-1.5px", lineHeight:1.1, margin:"10px 0 0" }}>
-                  Most JDs fail before<br/>anyone applies.
+                  {jd.trim() === "" ? (
+                    <>Most JDs fail before<br/>anyone applies.</>
+                  ) : wordCount(jd) < 30 ? (
+                    <>Keep going.<br/><span style={{ color:C.blue }}>Reading your JD.</span></>
+                  ) : detectBias(jd).length > 0 ? (
+                    <><span style={{ color:C.amber }}>{detectBias(jd).length} flag{detectBias(jd).length>1?"s":""} found</span><br/>in your JD.</>
+                  ) : wordCount(jd) >= 50 ? (
+                    <>Your JD looks<br/><span style={{ color:C.green }}>ready to analyse.</span></>
+                  ) : (
+                    <>Most JDs fail before<br/>anyone applies.</>
+                  )}
                 </motion.h1>
                 <motion.p variants={{ hidden:{opacity:0,y:6}, show:{opacity:1,y:0,transition:{...SP.arrive,delay:0.08}} }}
                   style={{ fontFamily:C.sans, fontSize:15, fontWeight:400, color:C.inkMid, lineHeight:1.7, maxWidth:"52ch", marginTop:14 }}>
-                  Bias, keyword gaps, and missing sections cost you candidates before the process begins. Paste yours and find out.
+                  {jd.trim() === ""
+                    ? "Bias, keyword gaps, and missing sections cost you candidates before the process begins. Paste yours and find out."
+                    : detectBias(jd).length > 0
+                    ? `Found: ${detectBias(jd).slice(0,3).join(", ")}${detectBias(jd).length > 3 ? ` and ${detectBias(jd).length-3} more` : ""}. Run analysis for the full picture.`
+                    : "Looking good so far. Run analysis for the full breakdown."}
                 </motion.p>
               </motion.div>
 
@@ -550,7 +807,7 @@ Return this exact JSON structure with your analysis filled in:
                     <L>Job Description <span style={{ color:C.red }}>*</span></L>
                     <UploadBtn filename={jdFile} onFile={f=>handleFile(f,setJd,setJdFile)}/>
                   </div>
-                  <Field value={jd} onChange={e=>{setJd(e.target.value);setJdFile("");}} placeholder="Paste the full job description..." minHeight={200}/>
+                  <JDField value={jd} onChange={e=>{setJd(e.target.value);setJdFile("");}} placeholder="Paste the full job description..." minHeight={200}/>
                 </div>
 
                 <div>
@@ -593,38 +850,72 @@ Return this exact JSON structure with your analysis filled in:
             <motion.div key="results"
               initial={{ opacity:0, y:6 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0, y:-4 }}
               transition={{ duration:0.2, ease:[0.16,1,0.3,1] }}
+              style={{ maxWidth:820, margin:"0 auto", padding:"40px 24px 100px" }}
             >
-              {/* Score panel , full width, then splits below */}
-              <div style={{ maxWidth:780, margin:"0 auto", padding:"40px 24px 0" }}>
-                <motion.div initial={{ opacity:0, y:8 }} animate={{ opacity:1, y:0 }} transition={SP.arrive}
-                  style={{ padding:"24px 28px", borderBottom:`1px solid ${C.border}` }}>
-                  <ScoreBar score={result.overallScore}/>
+              {/* Score bar */}
+              <motion.div initial={{ opacity:0, y:8 }} animate={{ opacity:1, y:0 }} transition={SP.arrive}
+                style={{ padding:"24px 28px", border:`1px solid ${C.border}`, borderRadius:10, background:C.surface, marginBottom:24 }}>
+                <ScoreBar score={result.overallScore}/>
+              </motion.div>
+
+              {/* 2x2 card grid */}
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:12 }}>
+                {DIMENSIONS.map(dim => renderCard(dim, result, expanded, setExpanded))}
+              </div>
+
+              {/* Resume Match , full width if present */}
+              {result.resumeMatch && (
+                <motion.div
+                  initial={{ opacity:0, y:10 }}
+                  animate={{ opacity:1, y:0 }}
+                  transition={{ ...SP.arrive, delay:0.28 }}
+                  style={{ border:`1px solid ${expanded==="match" ? "rgba(124,58,237,0.3)" : C.border}`, borderRadius:10, overflow:"hidden", background:C.surface, transition:"border-color 200ms ease" }}
+                >
+                  <div
+                    onClick={()=>setExpanded(expanded==="match" ? null : "match")}
+                    style={{ padding:"18px 20px", display:"flex", alignItems:"center", justifyContent:"space-between", cursor:"pointer", borderBottom: expanded==="match" ? `1px solid ${C.border}` : "none" }}
+                  >
+                    <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                      <div style={{ width:32, height:32, borderRadius:8, background:"rgba(124,58,237,0.10)", border:"1px solid rgba(124,58,237,0.22)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                          <path d="M2 4h8M2 8h6M2 12h7" stroke="#7C3AED" strokeWidth="1.5" strokeLinecap="round"/>
+                          <circle cx="12" cy="9" r="3" stroke="#7C3AED" strokeWidth="1.5"/>
+                          <path d="M14.5 11.5l1.5 1.5" stroke="#7C3AED" strokeWidth="1.5" strokeLinecap="round"/>
+                        </svg>
+                      </div>
+                      <div>
+                        <div style={{ fontFamily:C.mono, fontSize:10, fontWeight:700, color:"#7C3AED", letterSpacing:"0.12em", textTransform:"uppercase", marginBottom:3 }}>Resume Match</div>
+                        <div style={{ fontFamily:C.sans, fontSize:13, color:C.inkMid }}>
+                          {result.resumeMatch.matchScore}/100 match score
+                        </div>
+                      </div>
+                    </div>
+                    <motion.div animate={{ rotate: expanded==="match" ? 180 : 0 }} transition={SP.snap} style={{ color:C.inkDim }}>
+                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                        <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    </motion.div>
+                  </div>
+                  <AnimatePresence>
+                    {expanded==="match" && (
+                      <motion.div initial={{ height:0, opacity:0 }} animate={{ height:"auto", opacity:1 }} exit={{ height:0, opacity:0 }} transition={{ duration:0.22, ease:[0.16,1,0.3,1] }} style={{ overflow:"hidden" }}>
+                        <div style={{ padding:"16px 20px 20px" }}>
+                          <div style={{ paddingBottom:16, marginBottom:4, borderBottom:`1px solid ${C.border}` }}>
+                            <ScoreMini score={result.resumeMatch.matchScore}/>
+                            <p style={{ fontFamily:C.sans, fontSize:13, color:C.inkDim, lineHeight:1.7, margin:"12px 0 0" }}>{result.resumeMatch.verdict}</p>
+                          </div>
+                          <CardSection label="Strengths" color={C.green}>
+                            {result.resumeMatch.strengths.map((s,i)=><Row key={i} text={s} type="match" index={i}/>)}
+                          </CardSection>
+                          <CardSection label="Gaps" color={C.red}>
+                            {result.resumeMatch.gaps.map((s,i)=><Row key={i} text={s} type="missing" index={i}/>)}
+                          </CardSection>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </motion.div>
-              </div>
-
-              {/* Tab bar , Linear-style layoutId underline */}
-              <div style={{ position:"sticky", top:52, zIndex:100, background:`${C.bg}F4`, backdropFilter:"blur(20px)", borderBottom:`1px solid ${C.border}` }}>
-                <div style={{ maxWidth:780, margin:"0 auto", display:"flex", padding:"0 24px", position:"relative" }}>
-                  {tabs.map(t => (
-                    <button key={t.id} onClick={()=>setTab(t.id)}
-                      style={{ position:"relative", padding:"14px 20px", background:"transparent", border:"none", outline:"none", color:tab===t.id?C.ink:C.inkDim, fontFamily:C.mono, fontSize:11, letterSpacing:"0.1em", textTransform:"uppercase", fontWeight:tab===t.id?700:500, cursor:"pointer", transition:"color 140ms ease" }}>
-                      {t.label}
-                      {tab===t.id && (
-                        <motion.div layoutId="jd-tab-line"
-                          style={{ position:"absolute", bottom:-1, left:0, right:0, height:2, background:C.blue, borderRadius:1 }}
-                          transition={SP.snap}/>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Tab content */}
-              <div style={{ maxWidth:780, margin:"0 auto", padding:"24px 24px 100px" }}>
-                <AnimatePresence mode="wait">
-                  {renderTab()}
-                </AnimatePresence>
-              </div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
@@ -633,15 +924,15 @@ Return this exact JSON structure with your analysis filled in:
   );
 }
 
-/* ── Section , no cards, just ruled spacing ── */
-function Section({ label, accent, children }) {
+/* ── CardSection , subsection inside an expanded card ── */
+function CardSection({ label, color, children }) {
   return (
-    <div style={{ marginBottom:0 }}>
-      <div style={{ display:"flex", alignItems:"center", gap:10, padding:"18px 0 14px", borderTop:`1px solid ${C.border}` }}>
-        <div style={{ width:3, height:12, borderRadius:1, background:accent, flexShrink:0 }}/>
-        <span style={{ fontFamily:C.mono, fontSize:11, fontWeight:700, color:C.inkMid, letterSpacing:"0.12em", textTransform:"uppercase" }}>{label}</span>
+    <div style={{ marginTop:14 }}>
+      <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
+        <div style={{ width:2, height:10, borderRadius:1, background:color, flexShrink:0 }}/>
+        <span style={{ fontFamily:C.mono, fontSize:10, fontWeight:700, color:color, letterSpacing:"0.12em", textTransform:"uppercase" }}>{label}</span>
       </div>
-      <div style={{ paddingBottom:6 }}>{children}</div>
+      {children}
     </div>
   );
 }
