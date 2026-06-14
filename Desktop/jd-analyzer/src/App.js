@@ -300,14 +300,19 @@ export default function JDAnalyzer() {
     if (!jd.trim()) return;
     setLoading(true); setResult(null); setError("");
     const hasResume = resume.trim().length > 0;
-    const clean = t => t
-      .split("").filter(c=>c.charCodeAt(0)>=32||c==="\n"||c==="\t").join("")
-      .replace(/₹/g,"INR").replace(/•/g,"-")
-      .replace(/([A-Z])\s([A-Z])\s([A-Z])/g, "$1$2$3") // collapse spaced caps like "P R O F"
-      .replace(/\s{3,}/g," ") // collapse excessive whitespace
-      .replace(/[^\x00-\x7F]/g, "") // strip non-ASCII
-      .trim()
-      .slice(0, 6000); // cap length to avoid token issues
+    const clean = t => {
+      let result = "";
+      for (let i = 0; i < t.length; i++) {
+        const code = t.charCodeAt(i);
+        if (code >= 32 && code <= 126) result += t[i];
+        else if (code === 10 || code === 13 || code === 9) result += " ";
+      }
+      return result
+        .replace(/([A-Z]) ([A-Z]) ([A-Z])/g, "$1$2$3")
+        .replace(/\s{3,}/g, " ")
+        .trim()
+        .slice(0, 6000);
+    };
     const prompt = `You are an expert HR analyst. Analyze the following and return ONLY a JSON object.
 CRITICAL: Your response must be valid JSON only. No markdown. No backticks. No explanation. Start with { and end with }.
 Do not include any resume or JD text in your response. Only include your analysis.
@@ -335,23 +340,30 @@ Return this exact JSON structure with your analysis filled in:
       let parsed = null;
       // Try 1: direct parse
       try { parsed = JSON.parse(match[0]); } catch {}
-      // Try 2: strip non-ASCII and control chars
+      // Try 2: strip non-printable chars using charCodeAt
       if (!parsed) {
         try {
-          const cleaned = match[0].replace(/[^\x20-\x7E\n\r\t]/g,"").replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g,"");
-          parsed = JSON.parse(cleaned);
+          let safe2 = "";
+          for (let i = 0; i < match[0].length; i++) {
+            const code = match[0].charCodeAt(i);
+            if (code >= 32 || code === 10 || code === 13 || code === 9) safe2 += match[0][i];
+          }
+          parsed = JSON.parse(safe2);
         } catch {}
       }
-      // Try 3: extract just the structure we need
+      // Try 3: normalize quotes and whitespace
       if (!parsed) {
         try {
-          const safe = match[0]
-            .replace(/[\u2018\u2019]/g,"'")
-            .replace(/[\u201C\u201D]/g,'"')
-            .replace(/\n/g," ")
-            .replace(/\r/g,"")
-            .replace(/[\x00-\x1F\x7F]/g,"");
-          parsed = JSON.parse(safe);
+          let safe3 = "";
+          for (let i = 0; i < match[0].length; i++) {
+            const code = match[0].charCodeAt(i);
+            if (code >= 32) safe3 += match[0][i];
+            else if (code === 10 || code === 9) safe3 += " ";
+          }
+          safe3 = safe3
+            .replace(/\u2018|\u2019/g, "'")
+            .replace(/\u201C|\u201D/g, '"');
+          parsed = JSON.parse(safe3);
         } catch {}
       }
       if (!parsed) { setError("Parse error. Please try again , avoid pasting PDFs with unusual characters."); setLoading(false); return; }
