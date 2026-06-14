@@ -171,7 +171,7 @@ function ScoreBar({ score }) {
 
 /* ── Inline label ── */
 function L({ children }) {
-  return <span style={{ fontFamily:C.mono, fontSize:9, color:C.inkDim, letterSpacing:"0.14em", textTransform:"uppercase" }}>{children}</span>;
+  return <span style={{ fontFamily:C.mono, fontSize:12, fontWeight:600, color:C.inkMid, letterSpacing:"0.08em", textTransform:"uppercase" }}>{children}</span>;
 }
 
 /* ── Finding row , staggered on mount ── */
@@ -182,10 +182,10 @@ function Row({ text, type, index=0 }) {
       initial={{ opacity:0, x:-4 }}
       animate={{ opacity:1, x:0 }}
       transition={{ ...SP.arrive, delay:index*0.03 }}
-      style={{ display:"flex", gap:12, padding:"11px 0", borderBottom:`1px solid ${C.border}` }}
+      style={{ display:"flex", gap:12, padding:"12px 0", borderBottom:`1px solid ${C.border}` }}
     >
-      <div style={{ width:4, height:4, borderRadius:"50%", background:col, marginTop:7, flexShrink:0 }}/>
-      <p style={{ fontFamily:C.sans, fontSize:13, lineHeight:1.7, color:type==="missing"?C.ink:type==="match"?C.inkMid:C.inkMid, margin:0 }}>{text}</p>
+      <div style={{ width:5, height:5, borderRadius:"50%", background:col, marginTop:9, flexShrink:0 }}/>
+      <p style={{ fontFamily:C.sans, fontSize:14, fontWeight:500, lineHeight:1.7, color:type==="missing"?C.ink:type==="match"?C.inkMid:C.inkMid, margin:0 }}>{text}</p>
     </motion.div>
   );
 }
@@ -205,26 +205,23 @@ function Chip({ children, type }) {
   );
 }
 
-/* ── Textarea with spring border on focus ── */
-function Field({ value, onChange, placeholder, minHeight=200, label, optional }) {
+/* ── Textarea with scan line on focus (restored) ── */
+function Field({ value, onChange, placeholder, minHeight=200 }) {
   const [focused, setFocused] = useState(false);
   return (
-    <div>
-      <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
-        <L>{label}</L>
-        {optional && <span style={{ fontFamily:C.mono, fontSize:9, color:C.inkFaint }}>optional</span>}
-      </div>
-      <motion.div
-        animate={{ borderColor: focused ? C.blue : C.border, boxShadow: focused ? `0 0 0 3px ${C.blueTrace}` : "none" }}
-        transition={{ duration:0.14 }}
-        style={{ border:`1px solid ${C.border}`, borderRadius:8, overflow:"hidden", background:C.surface }}
-      >
-        <textarea value={value} onChange={onChange} placeholder={placeholder}
-          onFocus={()=>setFocused(true)} onBlur={()=>setFocused(false)}
-          style={{ width:"100%", background:"transparent", border:"none", outline:"none", fontFamily:C.mono, fontSize:12.5, color:C.ink, padding:"14px 16px", resize:"vertical", lineHeight:1.75, minHeight, caretColor:C.blue, boxSizing:"border-box" }}
-        />
-      </motion.div>
-    </div>
+    <motion.div
+      animate={{ borderColor: focused ? C.blue : C.border, boxShadow: focused ? `0 0 0 3px ${C.blueTrace}` : "none" }}
+      transition={{ duration:0.14 }}
+      style={{ border:`1px solid ${C.border}`, borderRadius:8, overflow:"hidden", background:C.surface, position:"relative" }}
+    >
+      <textarea value={value} onChange={onChange} placeholder={placeholder}
+        onFocus={()=>setFocused(true)} onBlur={()=>setFocused(false)}
+        style={{ width:"100%", background:"transparent", border:"none", outline:"none", fontFamily:C.mono, fontSize:13, fontWeight:500, color:C.ink, padding:"16px 18px", resize:"vertical", lineHeight:1.8, minHeight, caretColor:C.blue, boxSizing:"border-box" }}
+      />
+      {focused && (
+        <div style={{ position:"absolute", left:0, right:0, top:0, height:2, background:`linear-gradient(90deg, transparent, ${C.blue}, transparent)`, animation:"scanLine 2s ease-in-out infinite", pointerEvents:"none" }}/>
+      )}
+    </motion.div>
   );
 }
 
@@ -444,6 +441,7 @@ Return ONLY raw JSON, no markdown:
         ::-webkit-scrollbar-thumb{background:${C.raised};border-radius:2px;}
         input[type=file]{display:none;}
         button,label{cursor:pointer;}
+        @keyframes scanLine{0%{top:0;opacity:0}10%{opacity:1}90%{opacity:1}100%{top:100%;opacity:0}}
         @media(prefers-reduced-motion:reduce){*{animation-duration:0.01ms!important;transition-duration:0.01ms!important}}
       `}</style>
 
@@ -492,34 +490,34 @@ Return ONLY raw JSON, no markdown:
                   <span style={{ fontFamily:C.mono, fontSize:9, color:C.blue, letterSpacing:"0.16em", textTransform:"uppercase" }}>HR Intelligence</span>
                 </motion.div>
                 <motion.h1 variants={{ hidden:{opacity:0,y:8}, show:{opacity:1,y:0,transition:{...SP.arrive,delay:0.04}} }}
-                  style={{ fontFamily:C.sans, fontWeight:600, fontSize:"clamp(32px,5vw,48px)", color:C.ink, letterSpacing:"-1.5px", lineHeight:1.1, margin:"10px 0 0" }}>
-                  Decode any job description.
+                  style={{ fontFamily:C.sans, fontWeight:700, fontSize:"clamp(34px,5vw,52px)", color:C.ink, letterSpacing:"-1.5px", lineHeight:1.1, margin:"10px 0 0" }}>
+                  Most JDs fail before<br/>anyone applies.
                 </motion.h1>
                 <motion.p variants={{ hidden:{opacity:0,y:6}, show:{opacity:1,y:0,transition:{...SP.arrive,delay:0.08}} }}
-                  style={{ fontFamily:C.sans, fontSize:14, color:C.inkMid, lineHeight:1.7, maxWidth:"52ch", marginTop:12 }}>
-                  Surface bias, keyword gaps, and structural problems. Add a resume to see exactly how it stacks up.
+                  style={{ fontFamily:C.sans, fontSize:15, fontWeight:400, color:C.inkMid, lineHeight:1.7, maxWidth:"52ch", marginTop:14 }}>
+                  Bias, keyword gaps, and missing sections cost you candidates before the process begins. Paste yours and find out.
                 </motion.p>
               </motion.div>
 
               <motion.div initial={{ opacity:0, y:6 }} animate={{ opacity:1, y:0 }} transition={{ ...SP.arrive, delay:0.14 }}
                 style={{ display:"flex", flexDirection:"column", gap:16 }}>
                 <div>
-                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
                     <L>Job Description <span style={{ color:C.red }}>*</span></L>
                     <UploadBtn filename={jdFile} onFile={f=>handleFile(f,setJd,setJdFile)}/>
                   </div>
-                  <Field value={jd} onChange={e=>{setJd(e.target.value);setJdFile("");}} placeholder="Paste the full job description..." minHeight={200} label="" optional={false}/>
+                  <Field value={jd} onChange={e=>{setJd(e.target.value);setJdFile("");}} placeholder="Paste the full job description..." minHeight={200}/>
                 </div>
 
                 <div>
-                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
-                    <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:10 }}>
                       <L>Resume</L>
-                      <span style={{ fontFamily:C.mono, fontSize:9, color:C.inkFaint }}>optional</span>
+                      <span style={{ fontFamily:C.mono, fontSize:10, color:C.inkFaint, letterSpacing:"0.06em" }}>optional</span>
                     </div>
                     <UploadBtn filename={resFile} onFile={f=>handleFile(f,setResume,setResFile)}/>
                   </div>
-                  <Field value={resume} onChange={e=>{setResume(e.target.value);setResFile("");}} placeholder="Paste your resume to enable match scoring..." minHeight={130} label="" optional={true}/>
+                  <Field value={resume} onChange={e=>{setResume(e.target.value);setResFile("");}} placeholder="Paste your resume to enable match scoring..." minHeight={140}/>
                 </div>
 
                 {error && (
@@ -565,7 +563,7 @@ Return ONLY raw JSON, no markdown:
                 <div style={{ maxWidth:780, margin:"0 auto", display:"flex", padding:"0 24px", position:"relative" }}>
                   {tabs.map(t => (
                     <button key={t.id} onClick={()=>setTab(t.id)}
-                      style={{ position:"relative", padding:"13px 18px", background:"transparent", border:"none", outline:"none", color:tab===t.id?C.ink:C.inkDim, fontFamily:C.mono, fontSize:10, letterSpacing:"0.1em", textTransform:"uppercase", fontWeight:tab===t.id?600:400, cursor:"pointer", transition:"color 140ms ease" }}>
+                      style={{ position:"relative", padding:"14px 20px", background:"transparent", border:"none", outline:"none", color:tab===t.id?C.ink:C.inkDim, fontFamily:C.mono, fontSize:11, letterSpacing:"0.1em", textTransform:"uppercase", fontWeight:tab===t.id?700:500, cursor:"pointer", transition:"color 140ms ease" }}>
                       {t.label}
                       {tab===t.id && (
                         <motion.div layoutId="jd-tab-line"
@@ -595,11 +593,11 @@ Return ONLY raw JSON, no markdown:
 function Section({ label, accent, children }) {
   return (
     <div style={{ marginBottom:0 }}>
-      <div style={{ display:"flex", alignItems:"center", gap:8, padding:"16px 0 12px", borderTop:`1px solid ${C.border}` }}>
-        <div style={{ width:2, height:10, borderRadius:1, background:accent, flexShrink:0 }}/>
-        <span style={{ fontFamily:C.mono, fontSize:9, color:C.inkDim, letterSpacing:"0.14em", textTransform:"uppercase" }}>{label}</span>
+      <div style={{ display:"flex", alignItems:"center", gap:10, padding:"18px 0 14px", borderTop:`1px solid ${C.border}` }}>
+        <div style={{ width:3, height:12, borderRadius:1, background:accent, flexShrink:0 }}/>
+        <span style={{ fontFamily:C.mono, fontSize:11, fontWeight:700, color:C.inkMid, letterSpacing:"0.12em", textTransform:"uppercase" }}>{label}</span>
       </div>
-      <div style={{ paddingBottom:4 }}>{children}</div>
+      <div style={{ paddingBottom:6 }}>{children}</div>
     </div>
   );
 }
