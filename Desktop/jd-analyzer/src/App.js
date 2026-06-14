@@ -245,14 +245,6 @@ function UploadBtn({ filename, onFile }) {
   );
 }
 
-/* ── Skeleton ── */
-function Skel({ w="100%", h=12 }) {
-  return (
-    <motion.div animate={{ opacity:[0.3,0.7,0.3] }} transition={{ duration:1.4, repeat:Infinity, ease:"easeInOut" }}
-      style={{ width:w, height:h, borderRadius:3, background:C.raised }}/>
-  );
-}
-
 /* ── Score mini circle for bias/match tabs ── */
 function ScoreMini({ score }) {
   const col = scoreColor(score);
