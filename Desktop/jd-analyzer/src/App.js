@@ -113,7 +113,7 @@ const SP = {
 function scoreColor(s) { return s>=75?C.good:s>=50?C.warn:C.bad; }
 function scorePale(s)  { return s>=75?C.goodPale:s>=50?C.warnPale:C.badPale; }
 function scoreBorder(s){ return s>=75?C.goodBorder:s>=50?C.warnBorder:C.badBorder; }
-function scoreWord(s)  { return s>=75?"Thriving":s>=50?"Growing":"Wilting"; }
+function scoreWord(s)  { return s>=75?"Strong":s>=50?"Moderate":"Weak"; }
 function scoreNote(s)  {
   if(s>=75) return "Well-structured, inclusive, and searchable. Ready to post.";
   if(s>=50) return "Functional but improvable. Address flagged issues before posting.";
@@ -236,9 +236,7 @@ function MyceliumCanvas({ pulseRef }) {
       pulseRef.current = () => { pulseIntensityRef.current = 1; };
     }
 
-    let t = 0;
     const draw = () => {
-      t += 0.016;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       // Decay pulse
@@ -313,7 +311,7 @@ function ScoreBar({ score }) {
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-end", marginBottom:12 }}>
         <div>
           <div style={{ fontFamily:C.mono, fontSize:9, color:C.gold, letterSpacing:"0.14em", textTransform:"uppercase", marginBottom:6 }}>
-            Specimen score
+            Overall score
           </div>
           <div style={{ display:"flex", alignItems:"baseline", gap:6 }}>
             <motion.span
@@ -596,7 +594,7 @@ function JDField({ value, onChange, placeholder, minHeight=220, onScan }) {
               <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
                 <path d="M1 4l2 2 4-4" stroke={C.good} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
-              Specimen ready
+              Ready
             </span>
           )}
         </div>
@@ -896,15 +894,15 @@ Return this exact JSON:
   const headline = jd.trim()===""
     ? <>Most JDs fail<br/><em>before anyone applies.</em></>
     : words < 30
-    ? <>Keep going —<br/><em style={{ color:C.gold }}>reading your specimen.</em></>
+    ? <>Keep going —<br/><em style={{ color:C.gold }}>reading your JD.</em></>
     : biasFlags.length > 0
     ? <><em style={{ color:C.bad }}>{biasFlags.length} flag{biasFlags.length>1?"s":""} detected</em><br/>in your JD.</>
     : words >= 50
-    ? <>Your JD looks<br/><em style={{ color:C.emerald }}>ready to examine.</em></>
+    ? <>Your JD looks<br/><em style={{ color:C.emerald }}>ready to analyse.</em></>
     : <>Most JDs fail<br/><em>before anyone applies.</em></>;
 
   const subline = jd.trim()===""
-    ? "Bias, keyword gaps, and missing sections cost you candidates. Drop your specimen to find out."
+    ? "Bias, keyword gaps, and missing sections cost you candidates. Paste your JD to find out."
     : biasFlags.length>0
     ? `Detected: ${biasFlags.slice(0,3).join(", ")}${biasFlags.length>3?` and ${biasFlags.length-3} more`:""}.`
     : "Looking clean. Run analysis for the full examination.";
@@ -959,13 +957,13 @@ Return this exact JSON:
                 letterSpacing:"0.08em", transition:"all 120ms ease" }}
               onMouseEnter={e=>{e.currentTarget.style.borderColor=C.emerald;e.currentTarget.style.color=C.emerald;}}
               onMouseLeave={e=>{e.currentTarget.style.borderColor=C.border;e.currentTarget.style.color=C.inkDim;}}>
-              ← New specimen
+              ← New analysis
             </motion.button>
           )}
 
           <div style={{ fontFamily:C.mono, fontSize:9, color:C.inkFaint, letterSpacing:"0.1em",
             textAlign:"right", lineHeight:1.6 }}>
-            FOREST<br/>FORENSICS
+            DOCUMENT<br/>FORENSICS
           </div>
         </header>
 
@@ -987,7 +985,7 @@ Return this exact JSON:
                 style={{ marginBottom:52 }}>
                 <div style={{ fontFamily:C.mono, fontSize:9, color:C.emerald,
                   letterSpacing:"0.18em", textTransform:"uppercase", marginBottom:12 }}>
-                  Forest Forensics · Specimen Analysis
+                  HR Intelligence · Document Analysis
                 </div>
                 <motion.h1
                   style={{ fontFamily:C.display, fontWeight:700, fontStyle:"italic",
@@ -1012,7 +1010,7 @@ Return this exact JSON:
                     <UploadBtn filename={jdFile} onFile={f=>handleFile(f,setJd,setJdFile)}/>
                   </div>
                   <JDField value={jd} onChange={e=>{setJd(e.target.value);setJdFile("");}}
-                    placeholder="Paste the specimen — the forest scan begins on paste..."
+                    placeholder="Paste the full job description — the scan begins on paste..."
                     minHeight={220}
                     onScan={()=>myceliumPulseRef.current&&myceliumPulseRef.current()}/>
                 </div>
@@ -1061,9 +1059,9 @@ Return this exact JSON:
                           transition={{ duration:0.9,repeat:Infinity,ease:"linear" }}
                           style={{ width:14, height:14, border:`2px solid ${C.inkFaint}`,
                             borderTopColor:C.ink, borderRadius:"50%" }}/>
-                        Examining specimen…
+                        Analysing…
                       </>
-                    ) : "Examine specimen →"}
+                    ) : "Run analysis →"}
                   </motion.button>
                 </div>
               </motion.div>
