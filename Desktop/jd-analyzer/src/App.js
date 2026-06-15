@@ -322,7 +322,6 @@ function JDField({ value, onChange, placeholder, minHeight=220 }) {
   const [scanDone, setScanDone] = useState(false);
   const prevLenRef = useRef(0);
   const scanRef = useRef(null);
-  const containerRef = useRef(null);
 
   const words = wordCount(value);
   const biasFlags = detectBias(value);
